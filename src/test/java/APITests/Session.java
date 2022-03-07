@@ -1,67 +1,82 @@
 package APITests;
 
-
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import io.restassured.http.ContentType;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.StringJoiner;
+
+import static io.restassured.RestAssured.given;
 
 public class Session {
 
-    private static Session session;
-    private String baseURL;
-    private String api_key;
-    private String request_token;
-    private String session_id;
+    private String token;
+    private String sessionId;
 
-    private Session(){
-        this.baseURL = "https://api.themoviedb.org/3";
-        this.api_key = "0383f0931f7f6bb14fe64530a706ce6c";
+    public void requestToken(Endpoint endpoint){
+        setToken(
+                given().
+                        queryParam("api_key", endpoint.getApiKey())
+                .when()
+                        .get(endpoint.getToken())
+                .then()
+                        .extract()
+                        .response()
+                        .getBody()
+                        .path("request_token")
+                        .toString()
+        );
     }
 
-    public static Session createSession () {
-        if (session == null){
-            session = new Session();
-        }
-        else
-            System.out.println("Only one session is available");
-        return session;
+    public void loginWithUserAndPassword(User user, Endpoint apidata){
+
+        Map<String,Object> bodyLogin = new HashMap<>();
+        bodyLogin.put("username", user.getUsername());
+        bodyLogin.put("password", user.getPassword());
+        bodyLogin.put("request_token", getToken());
+
+        given().
+                contentType(ContentType.JSON)
+                .body(bodyLogin)
+        .when()
+                .queryParam("api_key", apidata.getApiKey())
+                .post(apidata.getLogin())
+        .then()
+                .statusCode(200);
     }
 
-    public String getUrl() {
-        return baseURL;
+    public void requestSessionId(Endpoint apidata){
+
+        Map<String,Object> bodySession = new HashMap<>();
+        bodySession.put("request_token", getToken());
+
+        setSessionId(
+                given()
+                        .contentType(ContentType.JSON)
+                        .body(bodySession)
+                .when()
+                        .queryParam("api_key", apidata.getApiKey())
+                        .post(apidata.getSession())
+                .then()
+                        .extract()
+                        .response()
+                        .getBody()
+                        .path("session_id")
+                        .toString()
+        );
     }
 
-    public void setUrl(String url) {
-        this.baseURL = url;
+    public String getToken(){
+        return token;
     }
 
-    public String getApi_key() {
-        return api_key;
+    public void setToken(String token){
+        this.token = token;
     }
 
-    public void setApi_key(String api_key) {
-        this.api_key = api_key;
+    public String getSessionId(){
+        return sessionId;
     }
 
-    public String getRequest_token() {
-        return request_token;
-    }
-
-    public void setRequest_token(String request_token) {
-        this.request_token = request_token;
-    }
-
-    public String getSession_id() {
-        return session_id;
-    }
-
-    public void setSession_id(String session_id) {
-        this.session_id = session_id;
+    public void setSessionId(String sessionId){
+        this.sessionId = sessionId;
     }
 }

@@ -1,226 +1,116 @@
 package APITests;
 
 import io.restassured.RestAssured;
-import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.*;
-import java.util.HashMap;
-import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class APITests {
 
-    static String url = "https://api.themoviedb.org/3";
-    static String api_key = "0383f0931f7f6bb14fe64530a706ce6c";
-    static String username = "543n2";
-    static String password = "543n2Movies";
-    static String token;
-    static String session_id;
-    String list_id;
-    String movie_id = "807";
+    private static User user = new User();
+    private static Endpoint endpoint = new Endpoint();
+    private static Session session = new Session();
 
     @BeforeAll
-    public static void setup(){
-
-        RestAssured.baseURI = url;
-
-        String endpointGetToken = "/authentication/token/new";
-        String endpointLogInSession = "/authentication/token/validate_with_login";
-        String endpointCreateSession = "/authentication/session/new";
-
-        // Get token
-        token = given().queryParam("api_key", api_key)
-                .when().get(endpointGetToken)
-                .then().extract().response().getBody().path("request_token").toString();
-
-        // Login
-        Map<String,Object> bodyLogin = new HashMap<>();
-        bodyLogin.put("username", username);
-        bodyLogin.put("password", password);
-        bodyLogin.put("request_token", token);
-        given().contentType(ContentType.JSON).body(bodyLogin)
-                .when().queryParam("api_key", api_key).post(endpointLogInSession)
-                .then().statusCode(200);
-
-        // Session
-        Map<String,Object> bodySession = new HashMap<>();
-        bodySession.put("request_token", token);
-        session_id = given().contentType(ContentType.JSON).body(bodySession)
-                .when().queryParam("api_key", api_key).post(endpointCreateSession)
-                .then().extract().response().getBody().path("session_id").toString();
+    static void setup(){
+        RestAssured.baseURI = endpoint.getUrl();
+        session.requestToken(endpoint);
+        session.loginWithUserAndPassword(user, endpoint);
+        session.requestSessionId(endpoint);
+        System.out.println("Session Id: " + session.getSessionId());
     }
 
     @Test
     public void searchMovie(){
-
-        String movieQuery = "se7en";
-        String endpointMovieQuery = "/search/movie";
-
-        Response response = given().queryParam("api_key",api_key).queryParam("query", movieQuery)
-                .when().get(endpointMovieQuery)
-                .then().extract().response();
-
-        System.out.println(response.prettyPrint());
+        Movie movie = new MovieByName("se7en");
+        Response response = movie.searchRequest(endpoint);
         Assertions.assertEquals(200,response.getStatusCode());
+        System.out.println(response.prettyPrint());
     }
 
     @Test
-    @Order(1)
     public void getMovie() {
-
-        String movieId = "24";
-        //String movieId = movie_id;
-
-        String endpointGetMovie = "/movie/" + movieId;
-
-        Response response = given().queryParam("api_key",api_key)
-                .when().get(endpointGetMovie)
-                .then().extract().response();
-
-        System.out.println(response.prettyPrint());
+        Movie movie = new MovieById("106");
+        Response response = movie.getRequest(endpoint);
         Assertions.assertEquals(200,response.getStatusCode());
+        System.out.println(response.prettyPrint());
     }
 
     @Test
-    @Order(2)
     public void rateMovie() {
-
-        String movieId = "24";
-        //String movieId = movie_id;
-
-        double rating = 9.5;
-        String endpointRateMovie = "/movie/" + movieId + "/rating";
-
-        Map<String,Object> bodyRateMovie = new HashMap<>();
-        bodyRateMovie.put("value", rating);
-
-        Response response = given().contentType(ContentType.JSON)
-                                .queryParam("api_key", api_key)
-                                .and().queryParam("session_id", session_id)
-                                .body(bodyRateMovie)
-                            .when().post(endpointRateMovie)
-                            .then().extract().response();
-
+        Movie movie = new MovieByIdRating("24", 9.5);
+        Response response = movie.rateRequest(endpoint, session);
         System.out.println(response.prettyPrint());
         Assertions.assertEquals(201,response.getStatusCode());
     }
 
 
     @Test
-    @Order(3)
     public void createList(){
-
-        String listName = "List created in Rest Assured";
-        String listDescription = "I don't know what to write";
-        String listLanguage = "en";
-
-        String endpointCreateList = "/list";
-
-        Map<String,Object> bodyList = new HashMap<>();
-        bodyList.put("name", listName);
-        bodyList.put("description", listDescription);
-        bodyList.put("language", listLanguage);
-
-        Response response = given()
-                                .contentType(ContentType.JSON)
-                                .body(bodyList)
-                                .queryParam("api_key",api_key)
-                                .and().queryParam("session_id",session_id)
-                            .when().post(endpointCreateList)
-                            .then().extract().response();
-
-        list_id = response.path("list_id").toString();
-
+        List list = new ListByAll("My List","I have created a list!", "en");
+        Response response = list.createRequest(endpoint, session);
+        System.out.println("List id: " + list.getId());
         System.out.println(response.prettyPrint());
         Assertions.assertEquals(201,response.getStatusCode());
     }
 
     @Test
-    @Order(4)
     public void getListDetails(){
-
-        String listId = "8193620";
-        //String listId = list_id;
-
-        System.out.println("OJO ESTA ES LA LISTA ID: " + listId);
-
-        String endpointGetListDetails = "/list/";
-
-        Response response = given()
-                                .queryParam("api_key",api_key)
-                            .when().get(endpointGetListDetails + listId)
-                            .then().extract().response();
-
+        List list = new ListById("8194301");
+        Response response = list.getListDetailsRequest(endpoint, session);
+        System.out.println("List id: " + list.getId());
+        System.out.println(response.prettyPrint());
         Assertions.assertEquals(200,response.getStatusCode());
-        System.out.println(response.prettyPrint());
     }
 
     @Test
-    @Order(5)
     public void addMovieToList(){
-
-        String listId = "8193620";
-        String mediaId = "81";
-        //String listId = list_id;
-        //String mediaId = movie_id;
-
-        String endpointAddMovie = "/list/" + listId + "/add_item";
-
-        Map<String,Object> bodyMovieList = new HashMap<>();
-        bodyMovieList.put("media_id", mediaId);
-
-        Response response = given().contentType(ContentType.JSON)
-                .body(bodyMovieList)
-                .queryParam("api_key",api_key)
-                .and().queryParam("session_id",session_id)
-            .when().post(endpointAddMovie)
-            .then().extract().response();
-
-        Assertions.assertEquals(201,response.getStatusCode());
+        List list = new ListById("8194301");
+        Movie movie = new MovieById("78");
+        Response response = list.addMovieToListRequest(endpoint, session, movie);
         System.out.println(response.prettyPrint());
+        Assertions.assertEquals(201,response.getStatusCode());
     }
 
     @Test
-    @Order(6)
     public void clearList(){
-
-        String listId = "8193620";
-        //String listId = list_id;
-
-        boolean confirm = true;
-
-        String endpointAddMovie = "/list/" + listId + "/clear";
-
-        Response response = given().contentType(ContentType.JSON)
-                .queryParam("api_key",api_key)
-                .and().queryParam("session_id",session_id)
-                .and().queryParam("confirm",confirm)
-            .when().post(endpointAddMovie)
-            .then().extract().response();
-
+        List list = new ListById("8194301");
+        Response response = list.clearListRequest(endpoint, session);
         System.out.println(response.prettyPrint());
         Assertions.assertEquals(201,response.getStatusCode());
     }
 
     @Test
-    @Order(7)
     public void deleteList(){
-
-        String listId = "8193694";
-        //String listId = list_id;
-
-        String endpointDeleteList = "/list/" + listId;
-
-        Response response = given().queryParam("api_key",api_key)
-                .and().queryParam("session_id", session_id)
-                .when().delete(endpointDeleteList)
-                .then().extract().response();
-
+        List listById = new ListById("8194302");
+        Response response = listById.deleteRequest(endpoint, session);
+        System.out.println("List id: " + listById.getId());
         System.out.println(response.prettyPrint());
         Assertions.assertEquals(500,response.getStatusCode());
     }
 
+    @Test
+    public void createAndPopulateList(){
+        List list = new ListByAll("E2E List 1","valid description? Please","en");
+        Response createList = list.createRequest(endpoint,session);
+        for(int i=100; i<=140; i++){
+            Movie movie1 = new MovieById(Integer.toString(i));
+            Response addedMovie = list.addMovieToListRequest(endpoint,session,movie1);
+        }
+    }
+
+    @Test
+    public void createPopulateAnClearList(){
+        List list = new ListByAll("listaa X","another desc yes","en");
+        Response createList = list.createRequest(endpoint,session);
+        for(int i=1; i<=10; i++){
+            Movie movie1 = new MovieById(Integer.toString(i));
+            Response addedMovie = list.addMovieToListRequest(endpoint,session,movie1);
+        }
+        Response clearedList = list.clearListRequest(endpoint, session);
+        Assertions.assertEquals(201,clearedList.getStatusCode());
+    }
 
 }
